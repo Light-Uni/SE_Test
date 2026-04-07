@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clinical Curator – Tổng Quan</title>
+  <link rel="stylesheet" href="assets/css/global.css">
+  <style>
+    /* ── Dashboard-specific ── */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1fr 420px;
+      gap: 22px;
+      align-items: start;
+    }
+    .greeting-date {
+      font-size: 13px;
+      color: var(--gray-500);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+    .header-actions {
+      display: flex;
+      gap: 10px;
+      margin-left: auto;
+    }
+
+    /* Distribution */
+    .dist-item { margin-bottom: 18px; }
+    .dist-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .dist-name  { font-size: 13px; font-weight: 600; color: var(--gray-800); }
+    .dist-sub   { font-size: 11px; color: var(--gray-500); }
+    .dist-pct   { font-size: 14px; font-weight: 700; color: var(--gray-900); }
+    .dist-cap   { font-size: 11px; color: var(--gray-400); margin-top: 5px; }
+
+    /* FEFO Alert Table */
+    .fefo-card { flex: 1; }
+    .fefo-drug-icon {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      background: var(--info-bg);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    .fefo-drug-info { flex: 1; }
+    .fefo-drug-name { font-size: 13px; font-weight: 700; color: var(--gray-900); }
+    .fefo-drug-cat  { font-size: 11px; color: var(--gray-500); }
+    .fefo-expiry {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 5px;
+      background: var(--danger-bg);
+      color: var(--danger-text);
+    }
+    .fefo-expiry.warn {
+      background: var(--warning-bg);
+      color: var(--warning-text);
+    }
+
+    /* Tab Buttons */
+    .tab-group {
+      display: flex;
+      gap: 4px;
+      background: var(--gray-100);
+      border-radius: 8px;
+      padding: 3px;
+    }
+    .tab-btn {
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--gray-500);
+      cursor: pointer;
+      transition: all var(--transition);
+      border: none;
+      background: none;
+    }
+    .tab-btn.active {
+      background: white;
+      color: var(--primary-light);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    /* Quick stat bar */
+    .quick-stat-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .qs-item {
+      flex: 1;
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .qs-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--gray-400); }
+    .qs-value { font-size: 18px; font-weight: 800; color: var(--gray-900); }
+
+    .sync-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--success);
+      font-weight: 600;
+    }
+    .sync-dot {
+      width: 6px; height: 6px;
+      background: var(--success);
+      border-radius: 50%;
+      animation: pulse-dot 1.5s infinite;
+    }
+
+    .page-header-row {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 24px;
+    }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <!-- Main -->
+  <div class="main-content">
+    <header class="top-header">
+      <div class="search-box">
+        <svg class="search-icon" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" placeholder="Tìm kiếm thuốc, số lô hoặc vị trí...">
+      </div>
+      <div class="header-right">
+        <div class="header-bell" title="Thông báo">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="bell-badge"></span>
+        </div>
+        <div class="header-user">
+          <div class="user-info">
+            <div class="user-name">Dược sĩ/Thủ kho</div>
+            <div class="user-role">TRẠM QUẢN LÝ HN-01</div>
+          </div>
+          <div class="user-avatar">DS</div>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-content">
+      <!-- Page Header -->
+      <div class="page-header-row">
+        <div>
+          <div class="greeting-date">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            <span id="datetime-str">Hôm nay là Thứ Năm, 24 Tháng 10 2024 • 09:15 AM</span>
+          </div>
+          <h1 style="font-size:28px;font-weight:800;color:var(--gray-900)">Chào buổi sáng, <span style="color:var(--primary-light)">PharmaFlow!</span></h1>
+        </div>
+        <div class="header-actions">
+          <button class="btn btn-outline" onclick="exportReport()">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Xuất báo cáo
+          </button>
+          <button class="btn btn-primary" onclick="window.location.href='import-export.html'">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nhập kho mới
+          </button>
+        </div>
+      </div>
+
+      <!-- KPI Cards -->
+      <div class="kpi-grid fade-in" id="kpi-grid"></div>
+
+      <!-- Dashboard Grid -->
+      <div class="dashboard-grid">
+        <!-- Left: Distribution + Sync -->
+        <div style="display:flex;flex-direction:column;gap:20px">
+          <!-- Distribution Card -->
+          <div class="card fade-in stagger-1">
+            <div class="card-header">
+              <span class="card-title">Phân bố tồn kho</span>
+              <button class="btn btn-ghost btn-sm" style="color:var(--gray-400)">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+              </button>
+            </div>
+            <div class="card-body" id="dist-body"></div>
+          </div>
+
+          <!-- Sync status -->
+          <div style="background:white;border-radius:12px;border:1px solid var(--gray-200);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;" class="fade-in stagger-2">
+            <div style="font-size:12px;font-weight:600;color:var(--gray-600)">Dung lượng kho</div>
+            <div style="font-size:12px;color:var(--gray-500)">73% – 1.46/2k Mẫn</div>
+          </div>
+          <div style="background:white;border-radius:12px;border:1px solid var(--gray-200);padding:14px 18px;" class="fade-in stagger-2">
+            <div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:12px;font-weight:600;color:var(--gray-600)">Tổng dung lượng</span>
+              <span style="font-size:12px;color:var(--gray-500)">73%</span>
+            </div>
+            <div class="progress-bar"><div class="progress-fill blue" style="width:73%"></div></div>
+            <div class="sync-indicator" style="margin-top:10px">
+              <div class="sync-dot"></div>
+              CẬP NHẬT 5 PHÚT TRƯỚC
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: FEFO Alert -->
+        <div class="card fade-in stagger-2">
+          <div class="card-header">
+            <span class="card-title">Cảnh báo FEFO (Xuất trước)</span>
+            <div class="tab-group">
+              <button class="tab-btn active" onclick="switchFefoTab(this,'week')">Tuần này</button>
+              <button class="tab-btn" onclick="switchFefoTab(this,'month')">Tháng này</button>
+            </div>
+          </div>
+          <div style="padding:12px 18px 6px;display:grid;grid-template-columns:1fr 1fr 80px 80px;gap:0;border-bottom:1px solid var(--gray-100)">
+            <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-400)">Tên thuốc / Biệt dược</span>
+            <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-400)">Số lô</span>
+            <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-400)">Ngày hết hạn</span>
+            <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-400)">Thao tác</span>
+          </div>
+          <div id="fefo-table-body"></div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="page-footer">
+      <span>© 2024 CLINICAL CURATOR</span>
+      <div class="footer-status">
+        <div class="status-dot"></div>
+        TRẠNG THÁI: HỆ THỐNG TRỰC TUYẾN
+        <span class="sync-indicator" style="margin-left:12px">
+          <div class="sync-dot"></div> SYNC ACTIVE
+        </span>
+      </div>
+      <div style="display:flex;gap:16px;font-size:12px">
+        <a href="#" style="color:var(--gray-400)">Hỗ trợ</a>
+        <a href="#" style="color:var(--gray-400)">Điều khoản</a>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<script src="assets/js/api.js"></script>
+<script src="assets/js/sidebar.js"></script>
+<script>
+// Init sidebar
+initSidebar('dashboard');
+
+// Update datetime
+function updateDatetime() {
+  const dt = getCurrentDateTime();
+  document.getElementById('datetime-str').textContent =
+    `Hôm nay là ${dt.dayName}, ${dt.day} ${dt.month} ${dt.year} • ${dt.time}`;
+}
+updateDatetime();
+setInterval(updateDatetime, 60000);
+
+// ── KPI Grid ──
+function renderKPIs() {
+  const k = MOCK.kpis;
+  const cards = [
+    { icon:'📦', color:'blue',   label:'TỔNG SỐ MẶT HÀNG', value: numFormat(k.totalItems),       badge: k.weekChange,  badgeType:'up' },
+    { icon:'💰', color:'green',  label:'GIÁ TRỊ TỒN KHO',  value: formatCurrency(k.stockValue)+' VND', badge: k.valueChange, badgeType:'up' },
+    { icon:'⚠️', color:'yellow', label:'LÔ HÀNG CẬN DATE', value: k.nearDateLots,               badge: 'Alert',       badgeType:'alert' },
+    { icon:'🚫', color:'red',    label:'LÔ HÀNG HẾT HẠN',  value: k.expiredLots,                badge: 'CRITICAL',    badgeType:'crit' },
+  ];
+  document.getElementById('kpi-grid').innerHTML = cards.map((c,i) => `
+    <div class="kpi-card ${c.color} stagger-${i+1}">
+      <div class="kpi-card-top">
+        <div class="kpi-icon ${c.color}">${c.icon}</div>
+        <span class="kpi-badge ${c.badgeType}">${c.badge}</span>
+      </div>
+      <div class="kpi-value">${c.value}</div>
+      <div class="kpi-label">${c.label}</div>
+    </div>`).join('');
+}
+
+// ── Distribution ──
+function renderDistribution() {
+  const colorMap = { blue:'blue', green:'green', yellow:'amber' };
+  document.getElementById('dist-body').innerHTML = MOCK.distribution.map(d => `
+    <div class="dist-item">
+      <div class="dist-header">
+        <div>
+          <div class="dist-name">${d.name}</div>
+          <div class="dist-sub">${d.sub}</div>
+        </div>
+        <div class="dist-pct">${d.pct}%</div>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill ${colorMap[d.color]||d.color}" style="width:${d.pct}%"></div>
+      </div>
+      <div class="dist-cap">Dung lượng đã dùng: ${d.capacity}</div>
+    </div>`).join('');
+}
+
+// ── FEFO Alerts ──
+const drugIcons = { 'Kháng sinh':'💊', 'Giảm đau':'🔵', 'Nội tiết':'💉', 'Vắc-xin':'🧪', 'Vitamin':'🟡' };
+function renderFefoAlerts() {
+  const rows = MOCK.fefoAlerts;
+  document.getElementById('fefo-table-body').innerHTML = rows.map(r => {
+    const isUrgent = r.daysLeft <= 30;
+    const expiryClass = isUrgent ? '' : 'warn';
+    return `
+    <div style="display:grid;grid-template-columns:1fr 1fr 80px 80px;gap:0;align-items:center;padding:14px 18px;border-bottom:1px solid var(--gray-100)">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="fefo-drug-icon">${r.category.split('·')[0].trim().includes('Kháng')? '💊' : r.category.split('·')[0].trim().includes('Giảm')? '🔵' : r.category.split('·')[0].trim().includes('Nội')? '💉' : '🧪'}</div>
+        <div>
+          <div class="fefo-drug-name">${r.drugName}</div>
+          <div class="fefo-drug-cat">${r.category}</div>
+        </div>
+      </div>
+      <div style="font-size:12px;font-weight:600;color:var(--gray-700)">${r.batchNo}</div>
+      <div>
+        <span class="fefo-expiry ${expiryClass}">${formatDateShort(r.expiryDate)}</span>
+      </div>
+      <div>
+        <button class="btn btn-primary btn-sm" onclick="quickExport('${r.drugName}','${r.batchNo}')">Xuất ngay</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function switchFefoTab(btn, mode) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderFefoAlerts(); // would filter by week/month in real app
+}
+
+function quickExport(drug, batch) {
+  showToast(`Đang tạo phiếu xuất cho ${drug} (${batch})`, 'info');
+  setTimeout(() => window.location.href='import-export.html', 1000);
+}
+
+function exportReport() {
+  showToast('Đang xuất báo cáo PDF...', 'info');
+}
+
+// Init
+renderKPIs();
+renderDistribution();
+renderFefoAlerts();
+</script>
+</body>
+</html>
