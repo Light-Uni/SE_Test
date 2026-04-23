@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
-const cors = require("cors");
+const cors    = require("cors");
+const db      = require("./config/db");
 
 const auth = require("./middlewares/authMiddleware");
 
@@ -14,6 +15,61 @@ const dashboardRoutes     = require("./routes/dashboard.routes");
 const batchesRoutes       = require("./routes/batches.routes");
 const inventoryRoutes     = require("./routes/inventory.routes");
 const inventoryLogsRoutes = require("./routes/inventory_logs.routes");
+
+// ── Migration: tự động thêm các cột/bảng còn thiếu khi server khởi động ──
+async function runMigrations() {
+  const migrations = [
+    {
+      label: "CREATE audit_sessions",
+      sql: `CREATE TABLE IF NOT EXISTS audit_sessions (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        created_by INT,
+        status     ENUM('OPEN','CONFIRMED') DEFAULT 'OPEN',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (created_by) REFERENCES users(id)
+      )`,
+    },
+    {
+      label: "CREATE audit_items",
+      sql: `CREATE TABLE IF NOT EXISTS audit_items (
+        id          INT AUTO_INCREMENT PRIMARY KEY,
+        session_id  INT NOT NULL,
+        medicine_id INT NOT NULL,
+        batch_id    INT NOT NULL,
+        system_qty  INT NOT NULL,
+        actual_qty  INT,
+        FOREIGN KEY (session_id)  REFERENCES audit_sessions(id),
+        FOREIGN KEY (medicine_id) REFERENCES medicines(id),
+        FOREIGN KEY (batch_id)    REFERENCES batches(id)
+      )`,
+    },
+    { label: "ADD batches.position",              sql: `ALTER TABLE batches          ADD COLUMN position          VARCHAR(50)` },
+    { label: "ADD medicines.storage_type",        sql: `ALTER TABLE medicines         ADD COLUMN storage_type      ENUM('NORMAL','COOL','COLD','SPECIAL') DEFAULT 'NORMAL'` },
+    { label: "ADD medicines.min_stock",           sql: `ALTER TABLE medicines         ADD COLUMN min_stock         INT DEFAULT 0` },
+    { label: "ADD medicines.max_stock",           sql: `ALTER TABLE medicines         ADD COLUMN max_stock         INT DEFAULT 0` },
+    { label: "ADD medicines.near_expiry_days",    sql: `ALTER TABLE medicines         ADD COLUMN near_expiry_days  INT DEFAULT 180` },
+    { label: "ADD import_requests.created_by",   sql: `ALTER TABLE import_requests   ADD COLUMN created_by        INT` },
+    { label: "ADD import_requests.note",         sql: `ALTER TABLE import_requests   ADD COLUMN note              TEXT` },
+  ];
+
+  for (const { label, sql } of migrations) {
+    try {
+      await db.query(sql);
+      console.log(`✅ Migration: ${label}`);
+    } catch (err) {
+      // Bỏ qua lỗi "đã tồn tại" — hoàn toàn bình thường khi chạy lại
+      if (
+        err.code === "ER_DUP_FIELDNAME" ||
+        err.code === "ER_TABLE_EXISTS_ERROR" ||
+        err.message.includes("Duplicate column")
+      ) {
+        // Cột/bảng đã tồn tại, không cần làm gì
+      } else {
+        console.error(`❌ Migration failed [${label}]:`, err.message);
+      }
+    }
+  }
+}
 
 const app = express();
 
@@ -39,6 +95,10 @@ app.use("/api/inventory-logs",  auth, inventoryLogsRoutes);
 require("./jobs/expiryAlertJob");
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+
+// Chạy migration trước, sau đó mới start server
+runMigrations().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
 });
