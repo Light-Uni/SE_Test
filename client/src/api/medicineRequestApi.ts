@@ -40,11 +40,16 @@ export const getImportRequests = () =>
 export const createImportRequest = (data: {
   medicine_id: number;
   quantity: number;
+  batch_code?: string;
+  expiry_date?: string;
   note?: string;
 }) => axios.post(`${BASE}/import-requests`, data, { headers: getHeaders() });
 
 export const receiveImportRequest = (id: number, data: object) =>
   axios.patch(`${BASE}/import-requests/${id}/receive`, data, { headers: getHeaders() });
+
+export const rejectImportRequest = (id: number, note: string) =>
+  axios.patch(`${BASE}/import-requests/${id}/reject`, { note }, { headers: getHeaders() });
 
 // ─── Dashboard ─────────────────────────────────────────────────────
 export const getDashboardSummary = () =>

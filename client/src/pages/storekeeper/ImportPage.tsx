@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { PageHeader, MetricCard, StatusPill, Icon, EmptyState } from "../../components/UI";
-import { getImportRequests, receiveImportRequest } from "../../api/medicineRequestApi";
+import { getImportRequests, receiveImportRequest, rejectImportRequest } from "../../api/medicineRequestApi";
+import { getInventoryMap } from "../../api/inventoryMapApi";
 
 /* ─── Giữ nguyên types ─── */
 type RequestSource = "manager" | "requestor";
@@ -9,13 +10,15 @@ type RequestItem = { productName: string; quantity: number };
 type WarehouseRequest = {
   id: number;
   createdAt: string;
-  status: "pending" | "processed" | "PENDING" | "RECEIVED";
+  status: "pending" | "processed" | "rejected" | "PENDING" | "RECEIVED" | "REJECTED";
   source: RequestSource;
   type: RequestType;
   items: RequestItem[];
   medicine_name?: string;
   quantity?: number;
   note?: string;
+  batch_code?: string;
+  expiry_date?: string;
 };
 
 export default function ImportRequestPage() {
@@ -23,14 +26,15 @@ export default function ImportRequestPage() {
   const [requests, setRequests] = useState<WarehouseRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<WarehouseRequest | null>(null);
-  const [status, setStatus] = useState<"full" | "partial">("full");
+  const [status, setStatus] = useState<"full" | "partial" | "excess">("full");
   const [note, setNote] = useState("");
-  const [batchCode, setBatchCode] = useState("");
   const [quantity, setQuantity] = useState<number>(0);
   const [floor, setFloor] = useState<number>(1);
   const [room, setRoom] = useState<string>("A");
   const [cabinet, setCabinet] = useState<string>("M1");
-  const [expiryDate, setExpiryDate] = useState<string>("");
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectNote, setRejectNote] = useState("");
+  const [fullPositions, setFullPositions] = useState<string[]>([]);
 
   // Load import requests từ API
   useEffect(() => {
@@ -43,18 +47,30 @@ export default function ImportRequestPage() {
             ? new Date(r.received_date).toLocaleDateString("vi-VN")
             : new Date(r.created_at || Date.now()).toLocaleDateString("vi-VN"),
           status:
-            r.status === "RECEIVED" ? "processed" : "pending",
+            r.status === "RECEIVED" ? "processed" : (r.status === "REJECTED" ? "rejected" : "pending"),
           source: r.created_by ? "manager" : "requestor",
           type: "import" as RequestType,
           medicine_name: r.medicine_name,
           quantity: r.quantity,
           note: r.note,
+          batch_code: r.batch_code,
+          expiry_date: r.expiry_date ? new Date(r.expiry_date).toISOString().split("T")[0] : "",
           items: [{ productName: r.medicine_name || "—", quantity: r.quantity }],
         }));
         setRequests(data);
       })
       .catch((err) => alert(err.response?.data?.message || "Lỗi tải danh sách nhập kho"))
       .finally(() => setLoading(false));
+  }, []);
+
+  // Load full positions
+  useEffect(() => {
+    getInventoryMap()
+      .then((data) => {
+        const full = data.filter((b) => b.cabinet_is_full).map((b) => b.position);
+        setFullPositions([...new Set(full as string[])]);
+      })
+      .catch(() => {});
   }, []);
 
   const getTotal = (items: RequestItem[]) => items.reduce((sum, i) => sum + i.quantity, 0);
@@ -65,15 +81,40 @@ export default function ImportRequestPage() {
     processed: requests.filter((r) => r.status === "processed").length,
   }), [requests]);
 
+  const handleReject = async () => {
+    if (!selected) return;
+    if (!rejectNote.trim()) {
+      alert("Vui lòng nhập ghi chú từ chối!");
+      return;
+    }
+    try {
+      await rejectImportRequest(selected.id, rejectNote);
+      setRequests((prev) =>
+        prev.map((r) => (r.id === selected.id ? { ...r, status: "rejected" } : r))
+      );
+      setSelected(null);
+      setShowRejectModal(false);
+      setRejectNote("");
+      alert("Đã từ chối lô hàng!");
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Lỗi khi từ chối");
+    }
+  };
+
   const handleSubmit = async () => {
     if (!selected) return;
+    const posKey = `F${floor}-${room}-${cabinet}`;
+    if (fullPositions.includes(posKey)) {
+      alert("Vị trí này đã được đánh dấu là đầy! Vui lòng chọn vị trí khác.");
+      return;
+    }
     try {
       await receiveImportRequest(selected.id, {
-        batch_code: batchCode,
+        batch_code: selected.batch_code || "",
         quantity: quantity || selected.quantity || 1,
         warehouse_id: "1",
         position: `F${floor}-${room}-${cabinet}`,
-        expiry_date: expiryDate,
+        expiry_date: selected.expiry_date || "",
         status,
         note,
       });
@@ -84,9 +125,7 @@ export default function ImportRequestPage() {
       setSelected(null);
       setStatus("full");
       setNote("");
-      setBatchCode("");
       setQuantity(0);
-      setExpiryDate("");
       alert("Xác nhận nhận hàng thành công!");
     } catch (err: any) {
       alert(err.response?.data?.message || "Lỗi khi xác nhận nhận hàng");
@@ -142,7 +181,10 @@ export default function ImportRequestPage() {
                   <td>{r.type === "import" ? "Nhập kho" : "Hoàn trả"}</td>
                   <td style={{ fontWeight: 600 }}>{getTotal(r.items)}</td>
                   <td>
-                    <StatusPill status={r.status} label={r.status === "pending" ? "Chờ xử lý" : "Đã xử lý"} />
+                    <StatusPill 
+                      status={r.status} 
+                      label={r.status === "pending" ? "Chờ xử lý" : (r.status === "processed" ? "Đã nhập" : "Đã từ chối")} 
+                    />
                   </td>
                   <td>
                     <button
@@ -178,9 +220,11 @@ export default function ImportRequestPage() {
             </div>
 
             {/* Info grid */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 12, marginBottom: 16 }}>
               {[
                 { label: "Thuốc", value: selected.medicine_name || selected.items[0]?.productName },
+                { label: "Mã lô", value: selected.batch_code || "—" },
+                { label: "HSD", value: selected.expiry_date ? new Date(selected.expiry_date).toLocaleDateString("vi-VN") : "—" },
                 { label: "Số lượng YC", value: getTotal(selected.items) },
                 { label: "Ghi chú", value: selected.note || "—" },
               ].map((s) => (
@@ -195,18 +239,8 @@ export default function ImportRequestPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                  <label className="text-label-sm" style={{ color: "var(--on-surface-variant)" }}>Mã lô hàng</label>
-                  <input placeholder="VD: PARA-2026-A1" value={batchCode} onChange={(e) => setBatchCode(e.target.value)} />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                   <label className="text-label-sm" style={{ color: "var(--on-surface-variant)" }}>Số lượng thực nhận</label>
                   <input type="number" min={1} value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} />
-                </div>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                  <label className="text-label-sm" style={{ color: "var(--on-surface-variant)" }}>Hạn sử dụng</label>
-                  <input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                   <label className="text-label-sm" style={{ color: "var(--on-surface-variant)" }}>Vị trí lưu trữ (Tầng - Phòng - Tủ)</label>
@@ -222,9 +256,16 @@ export default function ImportRequestPage() {
                       <option value="C">Phòng C</option>
                     </select>
                     <select value={cabinet} onChange={(e) => setCabinet(e.target.value)} style={{ flex: 1 }}>
-                      {Array.from({ length: 10 }, (_, i) => (
-                        <option key={`M${i + 1}`} value={`M${i + 1}`}>Tủ M{i + 1}</option>
-                      ))}
+                      {Array.from({ length: 10 }, (_, i) => {
+                        const cabKey = `M${i + 1}`;
+                        const posKey = `F${floor}-${room}-${cabKey}`;
+                        const isFull = fullPositions.includes(posKey);
+                        return (
+                          <option key={cabKey} value={cabKey} disabled={isFull}>
+                            Tủ {cabKey} {isFull ? "(Đầy)" : ""}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                 </div>
@@ -235,27 +276,51 @@ export default function ImportRequestPage() {
             <div style={{ marginBottom: 12 }}>
               <div className="text-label-sm" style={{ color: "var(--on-surface-variant)", marginBottom: 8 }}>Tình trạng nhận hàng</div>
               <div style={{ display: "flex", gap: 16 }}>
-                {(["full", "partial"] as const).map((val) => (
+                {(["full", "partial", "excess"] as const).map((val) => (
                   <label key={val} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: "0.875rem" }}>
                     <input type="radio" checked={status === val} onChange={() => setStatus(val)} />
-                    {val === "full" ? "Đủ hàng" : "Thiếu hàng"}
+                    {val === "full" ? "Đủ hàng" : val === "partial" ? "Thiếu hàng" : "Dư số lượng"}
                   </label>
                 ))}
               </div>
             </div>
 
-            {status === "partial" && (
+            {(status === "partial" || status === "excess") && (
               <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 16 }}>
-                <label className="text-label-sm" style={{ color: "var(--on-surface-variant)" }}>Ghi chú thiếu hàng</label>
-                <textarea rows={3} placeholder="Mô tả tình trạng thiếu hàng..." value={note} onChange={(e) => setNote(e.target.value)} />
+                <label className="text-label-sm" style={{ color: "var(--on-surface-variant)" }}>Ghi chú {status === "partial" ? "thiếu" : "dư"} hàng</label>
+                <textarea rows={3} placeholder={status === "partial" ? "Mô tả tình trạng thiếu hàng..." : "Mô tả tình trạng dư hàng..."} value={note} onChange={(e) => setNote(e.target.value)} />
               </div>
             )}
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <button className="btn btn-secondary" onClick={() => setSelected(null)}>Huỷ</button>
-              <button id="btn-confirm-import" className="btn btn-primary" onClick={handleSubmit}>
-                <Icon name="check_circle" size={16} /> Xác nhận
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <button className="btn btn-secondary" style={{ color: "var(--error)", border: "1px solid var(--error)" }} onClick={() => setShowRejectModal(true)}>
+                <Icon name="block" size={16} /> Từ chối nhập lô
               </button>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn btn-secondary" onClick={() => setSelected(null)}>Huỷ</button>
+                <button id="btn-confirm-import" className="btn btn-primary" onClick={handleSubmit}>
+                  <Icon name="check_circle" size={16} /> Xác nhận
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Reject Modal ─── */}
+      {showRejectModal && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.5)" }}>
+          <div className="metric-card animate-fade-in" style={{ width: 400, padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
+            <h2 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0, color: "var(--error)" }}>Từ chối lô hàng</h2>
+            <textarea
+              placeholder="Nhập lý do từ chối (bắt buộc)..."
+              value={rejectNote}
+              onChange={(e) => setRejectNote(e.target.value)}
+              style={{ width: "100%", height: 100, padding: 12, borderRadius: 8, border: "1px solid var(--outline-variant)", resize: "none" }}
+            />
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+              <button className="btn btn-ghost" onClick={() => setShowRejectModal(false)}>Hủy</button>
+              <button className="btn btn-primary" style={{ background: "var(--error)", border: "none" }} onClick={handleReject}>Xác nhận từ chối</button>
             </div>
           </div>
         </div>

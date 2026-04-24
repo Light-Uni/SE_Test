@@ -8,14 +8,16 @@ type HistoryItem = {
   requestCode: string;
   type: "IMPORT" | "EXPORT" | "ADJUST";
   date: string;
-  status: "approved" | "pending" | "rejected";
+  status: "approved" | "pending" | "rejected" | "shortage" | "excess";
   items: { product: string; quantity: number }[];
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  approved: "Đã duyệt",
-  pending: "Chờ duyệt",
+  approved: "Hoàn tất",
+  pending: "Đang chờ",
   rejected: "Từ chối",
+  shortage: "Thiếu thuốc",
+  excess: "Dư số lượng",
 };
 
 export default function StockHistoryPage() {
@@ -37,8 +39,11 @@ export default function StockHistoryPage() {
           date: log.created_at
             ? new Date(log.created_at).toLocaleDateString("vi-VN")
             : "—",
-          // inventory_logs không có status riêng → mặc định 'approved'
-          status: "approved" as const,
+          // Tự động nhận diện trạng thái từ lý do/ghi chú
+          status: log.note?.toLowerCase().includes("từ chối") ? "rejected"
+                : log.note?.toLowerCase().includes("thiếu") ? "shortage"
+                : log.note?.toLowerCase().includes("dư") ? "excess"
+                : "approved",
           items: [
             {
               product: log.medicine_name || `Thuốc #${log.medicine_id}`,

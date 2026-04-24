@@ -15,18 +15,18 @@ const ImportRequest = {
 
   // Tạo yêu cầu nhập kho (manager)
   async create(data) {
-    const { medicine_id, batch_code, quantity, created_by, note } = data;
+    const { medicine_id, batch_code, expiry_date, quantity, created_by, note } = data;
     const [result] = await db.query(
-      `INSERT INTO import_requests (medicine_id, batch_code, quantity, status, created_by, note)
-       VALUES (?, ?, ?, 'PENDING', ?, ?)`,
-      [medicine_id, batch_code || "", quantity, created_by, note || ""]
+      `INSERT INTO import_requests (medicine_id, batch_code, expiry_date, quantity, status, created_by, note)
+       VALUES (?, ?, ?, ?, 'PENDING', ?, ?)`,
+      [medicine_id, batch_code || "", expiry_date || null, quantity, created_by, note || ""]
     );
     return result.insertId;
   },
 
   // Xác nhận nhận hàng (storekeeper): INSERT batches + UPDATE status + ghi log
   async receive(id, receiveData) {
-    const { batch_code, quantity, warehouse_id, expiry_date, note, position } = receiveData;
+    const { batch_code, quantity, warehouse_id, expiry_date, note, position, status } = receiveData;
     const conn = await db.getConnection();
     try {
       await conn.beginTransaction();
@@ -62,12 +62,40 @@ const ImportRequest = {
           batchId,
           quantity,
           id,
-          note || `Nhập kho theo yêu cầu #${id}`,
+          (status === 'partial' ? '[Thiếu thuốc] ' : status === 'excess' ? '[Dư số lượng] ' : '') +
+          (note || `Nhập kho theo yêu cầu #${id}`),
         ]
       );
 
       await conn.commit();
       return batchId;
+    } finally {
+      conn.release();
+    }
+  },
+
+  // Từ chối yêu cầu nhập kho
+  async reject(id, note) {
+    const conn = await db.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      const [[req]] = await conn.query("SELECT * FROM import_requests WHERE id = ?", [id]);
+      if (!req) throw { status: 404, message: "Không tìm thấy yêu cầu" };
+
+      await conn.query(
+        "UPDATE import_requests SET status = 'REJECTED', note = CONCAT(IFNULL(note, ''), ' | Từ chối: ', ?) WHERE id = ?",
+        [note, id]
+      );
+
+      // Ghi log từ chối vào inventory_logs (change_amount = 0)
+      await conn.query(
+        `INSERT INTO inventory_logs (medicine_id, change_amount, type, ref_id, ref_type, note)
+         VALUES (?, 0, 'IMPORT', ?, 'IMPORT_REQUEST', ?)`,
+        [req.medicine_id, id, `Từ chối nhập kho yêu cầu #${id}: ${note}`]
+      );
+
+      await conn.commit();
     } catch (err) {
       await conn.rollback();
       throw err;

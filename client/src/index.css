@@ -115,7 +115,8 @@ body {
 .pill-rejected   { background: var(--error-container); color: var(--on-error-container); }
 .pill-IMPORT     { background: rgba(59,130,246,0.1); color: #1e40af; }
 .pill-EXPORT     { background: rgba(245,158,11,0.15); color: #92400e; }
-.pill-shortage   { background: rgba(245,158,11,0.15); color: #92400e; }
+.pill-shortage   { background: #FEF3C7; color: #D97706; } /* Nền vàng cam */
+.pill-excess     { background: #DBEAFE; color: #1E40AF; } /* Nền xanh dương */
 
 /* ─── Transitions ────────────────────────────────────────────────────────────── */
 button, a { transition: all 0.15s ease; }

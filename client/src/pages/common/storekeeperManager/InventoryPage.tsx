@@ -100,7 +100,7 @@ export default function InventoryPage() {
 
   // ─── Import Request modal (Manager) ───
   const [openRequest, setOpenRequest] = useState(false);
-  const [requestForm, setRequestForm] = useState({ medicine_id: 0, quantity: 1, note: "" });
+  const [requestForm, setRequestForm] = useState({ medicine_id: 0, quantity: 1, batch_code: "", expiry_date: "", note: "" });
 
   const handleSendImportRequest = async () => {
     if (!requestForm.medicine_id) return;
@@ -108,7 +108,7 @@ export default function InventoryPage() {
       await createImportRequest(requestForm);
       alert("Đã gửi yêu cầu nhập kho!");
       setOpenRequest(false);
-      setRequestForm({ medicine_id: 0, quantity: 1, note: "" });
+      setRequestForm({ medicine_id: 0, quantity: 1, batch_code: "", expiry_date: "", note: "" });
     } catch (err: any) {
       alert(err.response?.data?.message || "Lỗi khi gửi yêu cầu");
     }
@@ -248,6 +248,25 @@ export default function InventoryPage() {
                     <option key={m.id} value={m.id}>{m.name}</option>
                   ))}
                 </select>
+              </div>
+
+              <div style={{ display: "flex", gap: 12 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 5, flex: 1 }}>
+                  <label className="text-label-sm" style={{ color: "var(--on-surface-variant)" }}>Mã lô</label>
+                  <input
+                    placeholder="VD: B123-2024"
+                    value={requestForm.batch_code}
+                    onChange={(e) => setRequestForm({ ...requestForm, batch_code: e.target.value })}
+                  />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 5, flex: 1 }}>
+                  <label className="text-label-sm" style={{ color: "var(--on-surface-variant)" }}>Hạn sử dụng</label>
+                  <input
+                    type="date"
+                    value={requestForm.expiry_date}
+                    onChange={(e) => setRequestForm({ ...requestForm, expiry_date: e.target.value })}
+                  />
+                </div>
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
