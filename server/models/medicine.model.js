@@ -75,6 +75,14 @@ const Medicine = {
   async restore(id) {
     await db.query(`UPDATE medicines SET is_deleted = 0 WHERE id = ?`, [id]);
   },
+
+  // UPDATE MIN_STOCK
+  async updateMinStock(id, minStock) {
+    await db.query(
+      `UPDATE medicines SET min_stock = ? WHERE id = ?`,
+      [minStock, id]
+    );
+  },
 };
 
 module.exports = Medicine;

@@ -15,6 +15,7 @@ const dashboardRoutes     = require("./routes/dashboard.routes");
 const batchesRoutes       = require("./routes/batches.routes");
 const inventoryRoutes     = require("./routes/inventory.routes");
 const inventoryLogsRoutes = require("./routes/inventory_logs.routes");
+const reportRoutes        = require("./routes/reports.routes");
 
 // ── Migration: tự động thêm các cột/bảng còn thiếu khi server khởi động ──
 async function runMigrations() {
@@ -50,6 +51,9 @@ async function runMigrations() {
     { label: "ADD medicines.near_expiry_days",    sql: `ALTER TABLE medicines         ADD COLUMN near_expiry_days  INT DEFAULT 180` },
     { label: "ADD import_requests.created_by",   sql: `ALTER TABLE import_requests   ADD COLUMN created_by        INT` },
     { label: "ADD import_requests.note",         sql: `ALTER TABLE import_requests   ADD COLUMN note              TEXT` },
+    { label: "ADD medicines.unit_price",         sql: `ALTER TABLE medicines         ADD COLUMN unit_price        DECIMAL(12,2) DEFAULT 0` },
+    { label: "ADD medicines.import_price",       sql: `ALTER TABLE medicines         ADD COLUMN import_price      DECIMAL(12,2) DEFAULT 0` },
+    { label: "ADD batches.cabinet_is_full",      sql: `ALTER TABLE batches           ADD COLUMN cabinet_is_full   TINYINT(1)    DEFAULT 0` },
   ];
 
   for (const { label, sql } of migrations) {
@@ -90,6 +94,7 @@ app.use("/api/dashboard",       auth, dashboardRoutes);
 app.use("/api/batches",         auth, batchesRoutes);
 app.use("/api/inventory",       auth, inventoryRoutes);
 app.use("/api/inventory-logs",  auth, inventoryLogsRoutes);
+app.use("/api/reports",         auth, reportRoutes);
 
 // ── Cronjob: email cảnh báo cận date ──
 require("./jobs/expiryAlertJob");
