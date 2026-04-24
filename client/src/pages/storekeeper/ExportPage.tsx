@@ -4,6 +4,7 @@ import {
   getPendingExportRequests,
   getBatchesByMedicine,
   completeExportRequest,
+  rejectExportRequest,
 } from "../../api/medicineRequestApi";
 
 /* ─── Giữ nguyên types ─── */
@@ -140,7 +141,6 @@ export default function ExportPage() {
       return;
     }
     try {
-      // @ts-ignore
       await rejectExportRequest(selectedId, rejectNote);
       alert("Đã từ chối yêu cầu!");
       setShowRejectModal(false);

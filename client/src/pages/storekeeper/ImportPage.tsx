@@ -27,7 +27,9 @@ export default function ImportRequestPage() {
   const [note, setNote] = useState("");
   const [batchCode, setBatchCode] = useState("");
   const [quantity, setQuantity] = useState<number>(0);
-  const [warehouseId, setWarehouseId] = useState<string>("1");
+  const [floor, setFloor] = useState<number>(1);
+  const [room, setRoom] = useState<string>("A");
+  const [cabinet, setCabinet] = useState<string>("M1");
   const [expiryDate, setExpiryDate] = useState<string>("");
 
   // Load import requests từ API
@@ -69,7 +71,8 @@ export default function ImportRequestPage() {
       await receiveImportRequest(selected.id, {
         batch_code: batchCode,
         quantity: quantity || selected.quantity || 1,
-        warehouse_id: warehouseId,
+        warehouse_id: "1",
+        position: `F${floor}-${room}-${cabinet}`,
         expiry_date: expiryDate,
         status,
         note,
@@ -206,12 +209,24 @@ export default function ImportRequestPage() {
                   <input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                  <label className="text-label-sm" style={{ color: "var(--on-surface-variant)" }}>Kho nhập</label>
-                  <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
-                    <option value="1">Kho 1 (Thường)</option>
-                    <option value="2">Kho 2 (Mát)</option>
-                    <option value="3">Kho 3 (Lạnh)</option>
-                  </select>
+                  <label className="text-label-sm" style={{ color: "var(--on-surface-variant)" }}>Vị trí lưu trữ (Tầng - Phòng - Tủ)</label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <select value={floor} onChange={(e) => setFloor(Number(e.target.value))} style={{ flex: 1 }}>
+                      <option value={1}>Tầng 1</option>
+                      <option value={2}>Tầng 2</option>
+                      <option value={3}>Tầng 3</option>
+                    </select>
+                    <select value={room} onChange={(e) => setRoom(e.target.value)} style={{ flex: 1 }}>
+                      <option value="A">Phòng A</option>
+                      <option value="B">Phòng B</option>
+                      <option value="C">Phòng C</option>
+                    </select>
+                    <select value={cabinet} onChange={(e) => setCabinet(e.target.value)} style={{ flex: 1 }}>
+                      {Array.from({ length: 10 }, (_, i) => (
+                        <option key={`M${i + 1}`} value={`M${i + 1}`}>Tủ M{i + 1}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
