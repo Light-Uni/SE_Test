@@ -12,7 +12,12 @@ const ExportRequest = {
     // Lấy items cho từng request
     for (const r of rows) {
       const [items] = await db.query(
-        `SELECT eri.*, m.name AS medicine_name
+        `SELECT eri.*, m.name AS medicine_name,
+           (SELECT COALESCE(SUM(ABS(il.change_amount)), 0) 
+            FROM inventory_logs il 
+            WHERE il.ref_id = eri.export_request_id 
+              AND il.ref_type = 'EXPORT_REQUEST' 
+              AND il.medicine_id = eri.medicine_id) as exported_quantity
          FROM export_request_items eri
          JOIN medicines m ON m.id = eri.medicine_id
          WHERE eri.export_request_id = ?`,
@@ -31,7 +36,12 @@ const ExportRequest = {
     );
     for (const r of rows) {
       const [items] = await db.query(
-        `SELECT eri.*, m.name AS medicine_name
+        `SELECT eri.*, m.name AS medicine_name,
+           (SELECT COALESCE(SUM(ABS(il.change_amount)), 0) 
+            FROM inventory_logs il 
+            WHERE il.ref_id = eri.export_request_id 
+              AND il.ref_type = 'EXPORT_REQUEST' 
+              AND il.medicine_id = eri.medicine_id) as exported_quantity
          FROM export_request_items eri
          JOIN medicines m ON m.id = eri.medicine_id
          WHERE eri.export_request_id = ?`,
@@ -94,10 +104,16 @@ const ExportRequest = {
     try {
       await conn.beginTransaction();
 
+      let actualExportedItems = [];
+      const exportedPerMed = {};
+
       for (const item of exportItems) {
         // Kiểm tra hạn sử dụng
         const [[batch]] = await conn.query(
-          `SELECT id, batch_code, expiry_date, quantity FROM batches WHERE id = ?`,
+          `SELECT b.id, b.batch_code, b.expiry_date, b.quantity, b.medicine_id, m.name as medicine_name 
+           FROM batches b 
+           JOIN medicines m ON m.id = b.medicine_id 
+           WHERE b.id = ?`,
           [item.batch_id]
         );
         if (!batch) throw { status: 400, message: `Không tìm thấy lô #${item.batch_id}` };
@@ -110,49 +126,95 @@ const ExportRequest = {
           };
         }
 
+        let exportQty = item.quantity;
         if (item.quantity > batch.quantity) {
-          throw {
-            status: 400,
-            message: `Lô ${batch.batch_code} không đủ số lượng (còn ${batch.quantity}, yêu cầu ${item.quantity})`,
-          };
+          exportQty = batch.quantity;
         }
 
-        // Trừ số lượng
-        await conn.query(
-          `UPDATE batches SET quantity = quantity - ? WHERE id = ?`,
-          [item.quantity, item.batch_id]
-        );
+        if (exportQty > 0) {
+          // Trừ số lượng
+          await conn.query(
+            `UPDATE batches SET quantity = quantity - ? WHERE id = ?`,
+            [exportQty, item.batch_id]
+          );
 
-        // Lấy medicine_id từ batch
-        const [[batchInfo]] = await conn.query(
-          `SELECT medicine_id FROM batches WHERE id = ?`,
-          [item.batch_id]
-        );
+          // Ghi inventory_log
+          await conn.query(
+            `INSERT INTO inventory_logs
+               (medicine_id, batch_id, change_amount, type, ref_id, ref_type, note)
+             VALUES (?, ?, ?, 'EXPORT', ?, 'EXPORT_REQUEST', ?)`,
+            [
+              batch.medicine_id,
+              item.batch_id,
+              -exportQty,
+              requestId,
+              `Xuất kho theo yêu cầu #${requestId}`,
+            ]
+          );
 
-        // Ghi inventory_log
-        await conn.query(
-          `INSERT INTO inventory_logs
-             (medicine_id, batch_id, change_amount, type, ref_id, ref_type, note)
-           VALUES (?, ?, ?, 'EXPORT', ?, 'EXPORT_REQUEST', ?)`,
-          [
-            batchInfo.medicine_id,
-            item.batch_id,
-            -item.quantity,
-            requestId,
-            `Xuất kho theo yêu cầu #${requestId}`,
-          ]
-        );
+          actualExportedItems.push({
+            batchCode: batch.batch_code,
+            quantity: exportQty
+          });
+
+          if (!exportedPerMed[batch.medicine_id]) {
+            exportedPerMed[batch.medicine_id] = { name: batch.medicine_name, qty: 0 };
+          }
+          exportedPerMed[batch.medicine_id].qty += exportQty;
+        }
       }
+
+      // Lấy chi tiết yêu cầu gốc để so sánh
+      const [reqItems] = await conn.query(
+        `SELECT eri.medicine_id, m.name as medicine_name, eri.quantity as req_qty 
+         FROM export_request_items eri
+         JOIN medicines m ON m.id = eri.medicine_id
+         WHERE eri.export_request_id = ?`,
+        [requestId]
+      );
+
+      let shortages = [];
+      for (const ri of reqItems) {
+        const exported = exportedPerMed[ri.medicine_id]?.qty || 0;
+        if (exported < ri.req_qty) {
+           shortages.push({
+             medicineName: ri.medicine_name,
+             shortageAmount: ri.req_qty - exported,
+             exportedAmount: exported,
+             requestedAmount: ri.req_qty
+           });
+        }
+      }
+
+      // Xử lý thông tin thiếu
+      let shortageNoteStr = null;
+      let shortageInfo = [];
+      if (shortages.length > 0) {
+        const shortageNotes = [];
+        for (const s of shortages) {
+          shortageNotes.push(`${s.medicineName} - thiếu ${s.shortageAmount} (xuất ${s.exportedAmount}/${s.requestedAmount})`);
+          shortageInfo.push({ medicineName: s.medicineName, shortageAmount: s.shortageAmount });
+        }
+        shortageNoteStr = `Thiếu: ${shortageNotes.join(", ")}`;
+      }
+
+      const finalStatus = shortages.length > 0 ? 'SHORTAGE' : 'COMPLETED';
 
       // Cập nhật status
       await conn.query(
         `UPDATE export_requests
-         SET status = 'COMPLETED', storekeeper_confirm = 1, processed_date = NOW(), handle_result = 'SENT'
+         SET status = ?, storekeeper_confirm = 1, processed_date = NOW(), handle_result = 'SENT', shortage_note = ?
          WHERE id = ?`,
-        [requestId]
+        [finalStatus, shortageNoteStr, requestId]
       );
 
       await conn.commit();
+
+      return {
+        exportedItems: actualExportedItems,
+        shortageInfo: shortageInfo,
+        hasShortage: shortages.length > 0
+      };
     } catch (err) {
       await conn.rollback();
       throw err;

@@ -8,6 +8,7 @@ export type RequestItem = {
   productId: number;
   productName: string;
   quantity: number;
+  exportedQuantity?: number;
 };
 
 export type StockRequestStatus =
@@ -16,7 +17,15 @@ export type StockRequestStatus =
   | "rejected" // bị từ chối
   | "processing" // đang xuất kho (FEFO / picking)
   | "completed" // đã hoàn tất (đã giao + nhận xong)
-  | "expired"; // quá 3 ngày auto reject
+  | "shortage" // thiếu thuốc
+  | "expired" // quá 3 ngày auto reject
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED"
+  | "PROCESSING"
+  | "COMPLETED"
+  | "SHORTAGE"
+  | "EXPIRED";
 
 export type StockRequest = {
   id: number;

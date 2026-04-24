@@ -19,6 +19,8 @@ const STATUS_LABEL: Record<string, string> = {
   COMPLETED: "Hoàn thành",
   failed: "Thất bại",
   FAILED: "Thất bại",
+  shortage: "Thiếu thuốc",
+  SHORTAGE: "Thiếu thuốc",
 };
 
 export default function MedicineHistoryPage() {
@@ -51,6 +53,7 @@ export default function MedicineHistoryPage() {
             productId: i.medicine_id,
             productName: i.medicine_name || `Thuốc #${i.medicine_id}`,
             quantity: i.quantity,
+            exportedQuantity: Number(i.exported_quantity) || 0,
           })),
         }));
         setRequests(mapped);
@@ -99,6 +102,7 @@ export default function MedicineHistoryPage() {
           <option value="approved">Đã duyệt</option>
           <option value="rejected">Từ chối</option>
           <option value="completed">Hoàn thành</option>
+          <option value="shortage">Thiếu thuốc</option>
         </select>
 
         <select
@@ -207,7 +211,7 @@ export default function MedicineHistoryPage() {
             <div style={{ border: "1px solid var(--outline-variant)", borderRadius: 10, overflow: "hidden", marginBottom: 20 }}>
               <div style={{ background: "var(--surface-container-low)", padding: "10px 16px", display: "grid", gridTemplateColumns: "1fr auto" }}>
                 <span className="text-label-sm" style={{ color: "var(--on-surface-variant)" }}>Tên thuốc</span>
-                <span className="text-label-sm" style={{ color: "var(--on-surface-variant)" }}>Số lượng</span>
+                <span className="text-label-sm" style={{ color: "var(--on-surface-variant)", textAlign: "right" }}>Yêu cầu / Thực nhận</span>
               </div>
               {selected.items.length === 0 ? (
                 <div style={{ padding: "16px", textAlign: "center", color: "var(--on-surface-variant)", fontSize: "0.875rem" }}>
@@ -220,7 +224,16 @@ export default function MedicineHistoryPage() {
                     style={{ display: "grid", gridTemplateColumns: "1fr auto", padding: "12px 16px", borderTop: "1px solid var(--outline-variant)", fontSize: "0.875rem" }}
                   >
                     <span>{i.productName}</span>
-                    <span style={{ fontWeight: 600, color: "var(--primary)" }}>×{i.quantity}</span>
+                    <div style={{ textAlign: "right" }}>
+                      <span style={{ color: "var(--on-surface-variant)" }}>Y/c: <strong style={{ color: "var(--on-surface)" }}>{i.quantity}</strong></span>
+                      {(selected.status === 'completed' || selected.status === 'COMPLETED' || selected.status === 'shortage' || selected.status === 'SHORTAGE') ? (
+                        <div style={{ marginTop: 2 }}>
+                          <span style={{ fontWeight: 700, color: (i.exportedQuantity ?? 0) < i.quantity ? "var(--warning)" : "var(--primary)" }}>
+                            Thực nhận: {i.exportedQuantity}
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 ))
               )}

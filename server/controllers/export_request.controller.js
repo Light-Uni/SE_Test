@@ -62,8 +62,8 @@ exports.complete = async (req, res) => {
     if (!Array.isArray(exportItems) || exportItems.length === 0) {
       return res.status(400).json({ message: "Danh sách lô xuất không được rỗng" });
     }
-    await ExportRequest.complete(req.params.id, exportItems);
-    res.json({ message: "Xuất kho thành công" });
+    const result = await ExportRequest.complete(req.params.id, exportItems);
+    res.json({ message: "Xuất kho thành công", ...result });
   } catch (err) {
     const status = err.status || 500;
     res.status(status).json({ message: err.message });
