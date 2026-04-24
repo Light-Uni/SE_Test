@@ -190,7 +190,7 @@ export default function ImportRequestPage() {
                     <button
                       className="btn btn-primary"
                       style={{ padding: "6px 14px", fontSize: "0.8rem" }}
-                      disabled={r.status === "processed"}
+                      disabled={r.status !== "pending"}
                       onClick={() => { setSelected(r); setQuantity(r.quantity || 0); }}
                     >
                       <Icon name="check_circle" size={14} /> Xử lý
